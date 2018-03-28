@@ -138,9 +138,12 @@ for u,v in error.iteritems():
 
 mse_train=np.mean((y_pred_train-y_train)**2,1)
 mse_test=np.mean((y_pred_test-y_test)**2,1)
-ex=np.where(mse_test==np.min(mse_test))[0][0]
-ex=np.where(mse_test==np.max(mse_test))[0][0]
-plt.plot(y_pred_test[ex,:]); plt.plot(y_test[ex,:]); plt.show()
+best_ex=np.where(mse_test==np.min(mse_test))[0][0]
+worst_ex=np.where(mse_test==np.max(mse_test))[0][0]
+plt.plot(y_pred_test[worst_ex,:]); plt.plot(y_test[worst_ex,:]);
+plt.xlabel('time (arb. units)'); plt.ylabel('power (arb. units)'); plt.title('Worst case'); plt.show()
+plt.plot(y_pred_test[best_ex,:]); plt.plot(y_test[best_ex,:]);
+plt.xlabel('time (arb. units)'); plt.ylabel('power (arb. units)'); plt.title('Best case'); plt.show()
 
 # calculate log of error
 y_err_train=np.log10(mse_train)
@@ -149,8 +152,8 @@ y_err_test=np.log10(mse_test)
 # standard normalization
 mse_mu=np.mean(y_err_train)
 mse_sig=np.std(y_err_train)
-y_err_train=(y_err_train-mse_mu)/mse_sig
-y_err_test=(y_err_test-mse_mu)/mse_sig
+y_err_norm_train=(y_err_train-mse_mu)/mse_sig
+y_err_norm_test=(y_err_test-mse_mu)/mse_sig
 
 # add predictions of first model to features of error model
 x_err_train=np.concatenate((x_train,y_pred_train),axis=1)
@@ -160,12 +163,24 @@ x_err_test=np.concatenate((x_test,y_pred_test),axis=1)
 model = rcu.err_model(num_feat=x_err_train.shape[1])
 #estimator = KerasRegressor(build_fn=rcu.err_model, epochs=500, batch_size=75, verbose=1)
 #history=estimator.fit(x_err_train,y_err_train)
-model.fit(x_err_train, y_err_train, nb_epoch=1000, batch_size=75, verbose=1)
-err_test_pred = model.predict(x_err_test)
-err_train_pred = model.predict(x_err_train)
+model.fit(x_err_train, y_err_norm_train, nb_epoch=1000, batch_size=100, verbose=1)
+err_norm_test_pred = model.predict(x_err_test)
+err_norm_train_pred = model.predict(x_err_train)
 
-plt.plot(err_train_pred,y_err_train,'.'); plt.show()
-plt.plot(err_test_pred,y_err_test,'.'); plt.show()
+plt.plot(err_norm_train_pred,y_err_norm_train,'.'); plt.show()
+plt.plot(err_norm_test_pred,y_err_norm_test,'.'); plt.show()
+
+# de-normalize predictions
+err_test_pred = err_norm_test_pred*mse_sig + mse_mu
+err_train_pred = err_norm_train_pred*mse_sig + mse_mu
+plt.plot(err_train_pred,y_err_train,'.');
+plt.xlabel('log10 pred MSE'); plt.ylabel('log10 true MSE'); plt.title('Train set'); plt.show()
+plt.plot(err_test_pred,y_err_test,'.');
+plt.xlabel('log10 pred MSE'); plt.ylabel('log10 true MSE'); plt.title('Test set'); plt.show()
+#plt.plot(10**err_train_pred,10**y_err_train,'.');
+#plt.xlabel('pred MSE'); plt.ylabel('true MSE'); plt.title('Train set'); plt.show()
+plt.plot(10**err_test_pred,10**y_err_test,'.');
+plt.xlabel('pred MSE'); plt.ylabel('true MSE'); plt.title('Test set'); plt.show()
 
 #save model
 value=[[0.5,0.5,0.5,0.5]]

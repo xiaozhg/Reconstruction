@@ -75,7 +75,7 @@ def prep_data():
     return x_train, y_train, temp_train, temp
 
 
-def err_model(num_feat,num_neur=128,f_drop=0,f_drop2=0,lr=1e-2):
+def err_model(num_feat,num_neur=256,f_drop=0,f_drop2=0,lr=1e-2):
     # create model
     model = Sequential()
     #model.add(GaussianDropout(0.05,input_shape=(25,)))
