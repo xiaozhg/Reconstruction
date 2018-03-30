@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 #%matplotlib inline
 import keras
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Dense, Dropout, GaussianDropout
 from keras.wrappers.scikit_learn import KerasRegressor
 from sklearn.model_selection import cross_val_score
@@ -20,111 +20,97 @@ from __future__ import division, print_function
 
 import recon_utils as rcu
 
+# parameters
+train_recon_model=False  # if True, train new reconstruction model.  If False, import old model
+recon_model='0322_model.h5'
 
+# Load and split data
+print('Loading data...')
 x_train, y_train, temp_train, temp = rcu.prep_data()
-
 print(y_train.shape,x_train.shape)
-
-
 x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, random_state=0)
 print(x_train.shape, x_test.shape, y_train.shape, y_test.shape)
 
+
+#-----------------------------------
+# plot data
+
 #real data
-j=2
+show_features=False
+if show_features:
+    j=2
+    plt.plot(y_test[j],'-',color='blue',label='original power data')
+    plt.title('groundtruth power points')
+    plt.legend(loc='upper right')
+    plt.show()
 
-plt.plot(y_test[j],'-',color='blue',label='original power data')
-plt.title('groundtruth power points')
-plt.legend(loc='upper right')
-plt.show()
+    plt.figure()
+    plt.plot(np.array(range(temp)),x_test[j][0:temp],'-*',color='green',label='1 fs resolution power data')#,label='3fs resolution x_train data')
+    #plt.plot(y_test[j],'-',color='green',label='original power data')
+    plt.title('power points')
+    plt.legend(loc='upper right')
+    plt.show()
 
-plt.figure()
-plt.plot(np.array(range(temp)),x_test[j][0:temp],'-*',color='green',label='1 fs resolution power data')#,label='3fs resolution x_train data')
-#plt.plot(y_test[j],'-',color='green',label='original power data')
-plt.title('power points')
-plt.legend(loc='upper right')
-plt.show()
+    plt.figure()
+    plt.plot(x_train[j][temp:len(x_test[j])],'-*',label='spectral power data')
+    plt.title('spectral power points')
+    plt.legend(loc='upper right')
+    plt.show()
 
-plt.figure()
-plt.plot(x_train[j][temp:len(x_test[j])],'-*',label='spectral power data')
-plt.title('spectral power points')
-plt.legend(loc='upper right')
-plt.show()
-
-plt.figure()
-plt.plot(x_train[j],label='x_test')
-plt.plot(y_train[j],label='y_test')
-plt.legend(loc='upper right')
-plt.show()
-
-
-value=[[0.7,0.5,0.7,0.5]]
-neuron=[[2000,2000,2000,2000]]#,[500,800]]
-rate=[0.01]
+    plt.figure()
+    plt.plot(x_train[j],label='x_test')
+    plt.plot(y_train[j],label='y_test')
+    plt.legend(loc='upper right')
+    plt.show()
 
 
-drop=value
+#value=[[0.7,0.5,0.7,0.5]]
+#neuron=[[2000,2000,2000,2000]]#,[500,800]]
+#rate=[0.01]
+
+
+
+
+drop=[0.7,0.5,0.7,0.5]
+neuron=[2000,2000,2000,2000]#,[500,800]]
+lr=0.01
+
+if train_recon_model:
+    print('Training reconstruction model...')
+    model = rcu.baseline_model(neuron,drop,lr)
+    # fix random seed for reproducibility
+    seed = 7
+    np.random.seed(seed)
+    # evaluate model with standardized dataset
+
+    t_0=time.time()
+    history=model.fit(x_train,y_train)
+    t=time.time()-t_0
+    print("t=%fs"%t)
+
+#(estimator.model).save('0322_1_neurons:'+str(neuron[0])+'_dropout:'+str(value[0])+'_rate:'+str(rate[0])+'_model.h5')  # creates a HDF5 file
+else:
+    print('Loading reconstruction model...')
+
+    model = load_model(recon_model)
+
+
+for m in ['train','test']:
+    if m=='train':
+        y_pred_train=model.predict(x_train)
+    if m=='test':
+        y_pred_test=model.predict(x_test)
+
+
+
+    if m=='train':
+        temp_train=np.sqrt(metrics.mean_squared_error(y_pred_train,y_train))/y_train.mean()
+        temp_mse=metrics.mean_squared_error(y_pred_train,y_train)
+    if m=='test':
+        temp_test=np.sqrt(metrics.mean_squared_error(y_pred_test,y_test))/y_test.mean()
 error={}
-for n in neuron:
-    for j in drop:
-        for l in rate:
-
-            def baseline_model():
-                # create model
-                model = Sequential()
-                #model.add(GaussianDropout(0.05,input_shape=(25,)))
-                #model.add(Dense(850, input_dim=900, kernel_initializer='normal', activation='linear'))
-                model.add(Dense(n[0], input_dim=61, kernel_initializer='uniform', activation='relu'))
-                model.add(Dropout(j[0]))
-                model.add(Dense(n[1], activation='relu'))
-                model.add(Dropout(j[1]))
-                model.add(Dense(n[2], activation='relu'))
-                model.add(Dropout(j[2]))
-                model.add(Dense(n[3], activation='relu'))
-                model.add(Dropout(j[3]))
-                #model.add(Dropout(j[2]))
-                #model.add(Dense(n[2], activation='relu'))
-                #model.add(Dropout(j[2]))
-                #model.add(Dense(100, activation='relu'))
-                #model.add(Dropout(n[2]))
-                model.add(Dense(85, activation='softmax'))
-                        #sgd = SGD(lr=l, decay=1e-8, momentum=0.9, nesterov=True)
-                        
-                Ada=keras.optimizers.Adagrad(lr=l, epsilon=1e-12, decay=0.000) #0.002 for relu #5,1e-10,0 originally
-                #RMS=keras.optimizers.RMSprop(lr=2, rho=0.9, epsilon=1e-10, decay=0.15)
-                #model.compile(loss='mean_squared_error', optimizer=Ada,metrics=['mse'])
-                model.compile(loss='categorical_crossentropy', optimizer=Ada,metrics=['mse'])
-                return model
-
-
-            # fix random seed for reproducibility
-            seed = 7
-            np.random.seed(seed)
-            # evaluate model with standardized dataset
-            estimator = KerasRegressor(build_fn=baseline_model, epochs=10, batch_size=75, verbose=1)
-
-
-            t_0=time.time()
-            history=estimator.fit(x_train,y_train)
-            t=time.time()-t_0
-            print("t=%fs"%t)
-
-
-
-            for m in ['train','test']:
-                if m=='train':
-                    y_pred_train=estimator.predict(x_train)
-                if m=='test':
-                    y_pred_test=estimator.predict(x_test)
-
-
-
-                if m=='train':
-                    temp_train=np.sqrt(metrics.mean_squared_error(y_pred_train,y_train))/y_train.mean()
-                    temp_mse=metrics.mean_squared_error(y_pred_train,y_train)
-                if m=='test':
-                    temp_test=np.sqrt(metrics.mean_squared_error(y_pred_test,y_test))/y_test.mean()
-            error[(tuple(n),tuple(j),l)]={'train':temp_train,'mse':temp_mse,'test':temp_test,}
-            print(tuple(n),tuple(j),l,temp_train,temp_test,temp_mse)
+error[(tuple(neuron),tuple(drop),lr)]={'train':temp_train,'mse':temp_mse,'test':temp_test,}
+print(tuple(neuron),tuple(drop),lr,temp_train,temp_test,temp_mse)
 for u,v in error.iteritems():
     print(u,v)
         #plt.plot(range(len(y_train[15])),y_pred[3],'.-',color='red',label='predict')
@@ -159,11 +145,40 @@ y_err_norm_test=(y_err_test-mse_mu)/mse_sig
 x_err_train=np.concatenate((x_train,y_pred_train),axis=1)
 x_err_test=np.concatenate((x_test,y_pred_test),axis=1)
 
+#-------------------------------------
 # fit model
+print('Training error model...')
+
+# error model parameters
+nb_epoch=300
+epoch_per_chunk=10
+batch_size=100
+
 model = rcu.err_model(num_feat=x_err_train.shape[1])
 #estimator = KerasRegressor(build_fn=rcu.err_model, epochs=500, batch_size=75, verbose=1)
 #history=estimator.fit(x_err_train,y_err_train)
-model.fit(x_err_train, y_err_norm_train, nb_epoch=1000, batch_size=100, verbose=1)
+n_chunk=np.int(nb_epoch/epoch_per_chunk)
+t0=time.time()
+test_err=np.zeros(n_chunk)
+train_err=np.zeros(n_chunk)
+epoch_count=np.zeros(n_chunk)
+for e in range(n_chunk):
+    model.fit(x_err_train, y_err_norm_train, nb_epoch=epoch_per_chunk, batch_size=batch_size, verbose=0)
+    err_norm_test_pred = model.predict(x_err_test)
+    err_norm_train_pred = model.predict(x_err_train)
+    test_err[e]=metrics.mean_absolute_error(err_norm_test_pred,y_err_norm_test)
+    train_err[e]=metrics.mean_absolute_error(err_norm_train_pred,y_err_norm_train)
+    epoch_count[e]=(e+1)*epoch_per_chunk
+    t_e=time.time()-t0
+    print('%d/%d epochs in %d seconds, train error: %0.3f, test error: %0.3f' % (epoch_count[e],nb_epoch,t_e,train_err[e],test_err[e]))
+
+
+
+#-----------------------------
+# post processing
+#-----------------------------
+
+
 err_norm_test_pred = model.predict(x_err_test)
 err_norm_train_pred = model.predict(x_err_train)
 
@@ -182,19 +197,16 @@ plt.xlabel('log10 pred MSE'); plt.ylabel('log10 true MSE'); plt.title('Test set'
 plt.plot(10**err_test_pred,10**y_err_test,'.');
 plt.xlabel('pred MSE'); plt.ylabel('true MSE'); plt.title('Test set'); plt.show()
 
-#save model
-value=[[0.5,0.5,0.5,0.5]]
-neuron=[[2000,2000,2000,2000]]
-rate=[0.01]
 
-from keras.models import load_model
-#(estimator.model).save('0322_1_neurons:'+str(neuron[0])+'_dropout:'+str(value[0])+'_rate:'+str(rate[0])+'_model.h5')  # creates a HDF5 file
-del estimator.model  # deletes the existing model
-estimator.model = load_model('neurons:'+str(neuron[0])+'_dropout:'+str(value[0])+'_rate:'+str(rate[0])+'_model.h5')
-#estimator.model = load_model('neurons:'+str(neuron[0])+'_dropout:'+str(value[0])+'_rate:'+str(rate[0])+'_model.h5')
+# plot new worst-case
+good_shots=np.where(err_test_pred<np.median(err_test_pred))[0]
+#good_shots=np.where(err_test_pred<-5)[0]
+worst_ex=np.where(mse_test==np.max(mse_test[good_shots]))[0][0]
+plt.plot(y_pred_test[worst_ex,:]); plt.plot(y_test[worst_ex,:]);
+plt.xlabel('time (arb. units)'); plt.ylabel('power (arb. units)'); plt.title('Worst case'); plt.show()
 
 
-#history.history.keys()
-#plt.plot(history.history['mean_squared_error'])
-#plt.xlabel("epochs")
-#plt.ylabel("mse")
+# training
+plt.plot(epoch_count,train_err); plt.plot(epoch_count,test_err);
+plt.xlabel('epochs'); plt.ylabel('loss (MAE)'); plt.legend(['train','test']);  plt.show()
+

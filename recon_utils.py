@@ -74,8 +74,35 @@ def prep_data():
 
     return x_train, y_train, temp_train, temp
 
+def baseline_model(neuron,drop,lr):
+    # create model
+    model = Sequential()
+    #model.add(GaussianDropout(0.05,input_shape=(25,)))
+    #model.add(Dense(850, input_dim=900, kernel_initializer='normal', activation='linear'))
+    model.add(Dense(neuron[0], input_dim=61, kernel_initializer='uniform', activation='relu'))
+    model.add(Dropout(drop[0]))
+    model.add(Dense(neuron[1], activation='relu'))
+    model.add(Dropout(drop[1]))
+    model.add(Dense(neuron[2], activation='relu'))
+    model.add(Dropout(drop[2]))
+    model.add(Dense(neuron[3], activation='relu'))
+    model.add(Dropout(drop[3]))
+    #model.add(Dropout(j[2]))
+    #model.add(Dense(n[2], activation='relu'))
+    #model.add(Dropout(j[2]))
+    #model.add(Dense(100, activation='relu'))
+    #model.add(Dropout(n[2]))
+    model.add(Dense(85, activation='softmax'))
+            #sgd = SGD(lr=l, decay=1e-8, momentum=0.9, nesterov=True)
+            
+    Ada=keras.optimizers.Adagrad(lr=lr, epsilon=1e-12, decay=0.000) #0.002 for relu #5,1e-10,0 originally
+    #RMS=keras.optimizers.RMSprop(lr=2, rho=0.9, epsilon=1e-10, decay=0.15)
+    #model.compile(loss='mean_squared_error', optimizer=Ada,metrics=['mse'])
+    model.compile(loss='categorical_crossentropy', optimizer=Ada,metrics=['mse'])
+    return model
 
-def err_model(num_feat,num_neur=256,f_drop=0,f_drop2=0,lr=1e-2):
+
+def err_model(num_feat,num_neur=256,f_drop=0.15,f_drop2=0.0,lr=3e-3):
     # create model
     model = Sequential()
     #model.add(GaussianDropout(0.05,input_shape=(25,)))
