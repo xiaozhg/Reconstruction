@@ -15,6 +15,7 @@ from sklearn.cross_validation import train_test_split
 from sklearn import metrics
 import random
 import time
+import os
 
 from __future__ import division, print_function
 
@@ -22,11 +23,12 @@ import recon_utils as rcu
 
 # parameters
 train_recon_model=False  # if True, train new reconstruction model.  If False, import old model
-recon_model='0322_model.h5'
+data_path='/Users/dratner/Desktop/Data/Reconstruction/Data'
+recon_model=os.path.join(data_path,'0322_model.h5')
 
 # Load and split data
 print('Loading data...')
-x_train, y_train, temp_train, temp = rcu.prep_data()
+x_train, y_train, temp_train, temp = rcu.prep_data(data_path)
 print(y_train.shape,x_train.shape)
 x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, random_state=0)
 print(x_train.shape, x_test.shape, y_train.shape, y_test.shape)
@@ -126,8 +128,11 @@ mse_train=np.mean((y_pred_train-y_train)**2,1)
 mse_test=np.mean((y_pred_test-y_test)**2,1)
 best_ex=np.where(mse_test==np.min(mse_test))[0][0]
 worst_ex=np.where(mse_test==np.max(mse_test))[0][0]
+med_ex=np.where(mse_test==np.percentile(mse_test,70,interpolation='nearest'))[0][0]
 plt.plot(y_pred_test[worst_ex,:]); plt.plot(y_test[worst_ex,:]);
 plt.xlabel('time (arb. units)'); plt.ylabel('power (arb. units)'); plt.title('Worst case'); plt.show()
+plt.plot(y_pred_test[med_ex,:]); plt.plot(y_test[med_ex,:]);
+plt.xlabel('time (arb. units)'); plt.ylabel('power (arb. units)'); plt.title('Median case'); plt.show()
 plt.plot(y_pred_test[best_ex,:]); plt.plot(y_test[best_ex,:]);
 plt.xlabel('time (arb. units)'); plt.ylabel('power (arb. units)'); plt.title('Best case'); plt.show()
 
@@ -145,16 +150,26 @@ y_err_norm_test=(y_err_test-mse_mu)/mse_sig
 x_err_train=np.concatenate((x_train,y_pred_train),axis=1)
 x_err_test=np.concatenate((x_test,y_pred_test),axis=1)
 
+
 #-------------------------------------
 # fit model
 print('Training error model...')
 
 # error model parameters
-nb_epoch=300
-epoch_per_chunk=10
-batch_size=100
+nb_epoch=2000
+epoch_per_chunk=20
+batch_size=1000
+lr=1e-3
 
 model = rcu.err_model(num_feat=x_err_train.shape[1])
+
+# Optimizers and metrics
+Ada=keras.optimizers.Adagrad(lr=lr, epsilon=1e-12, decay=0.000) #0.002 for relu #5,1e-10,0 originally
+Adam=keras.optimizers.Adam(lr=lr)
+#RMS=keras.optimizers.RMSprop(lr=2, rho=0.9, epsilon=1e-10, decay=0.15)
+model.compile(loss='mean_squared_error', optimizer=Adam,metrics=['mse'])
+#model.compile(loss='mean_absolute_error', optimizer=Ada,metrics=['mse'])
+
 #estimator = KerasRegressor(build_fn=rcu.err_model, epochs=500, batch_size=75, verbose=1)
 #history=estimator.fit(x_err_train,y_err_train)
 n_chunk=np.int(nb_epoch/epoch_per_chunk)
@@ -166,12 +181,13 @@ for e in range(n_chunk):
     model.fit(x_err_train, y_err_norm_train, nb_epoch=epoch_per_chunk, batch_size=batch_size, verbose=0)
     err_norm_test_pred = model.predict(x_err_test)
     err_norm_train_pred = model.predict(x_err_train)
-    test_err[e]=metrics.mean_absolute_error(err_norm_test_pred,y_err_norm_test)
-    train_err[e]=metrics.mean_absolute_error(err_norm_train_pred,y_err_norm_train)
+#    test_err[e]=metrics.mean_absolute_error(err_norm_test_pred,y_err_norm_test)
+#    train_err[e]=metrics.mean_absolute_error(err_norm_train_pred,y_err_norm_train)
+    test_err[e]=metrics.mean_squared_error(err_norm_test_pred,y_err_norm_test)
+    train_err[e]=metrics.mean_squared_error(err_norm_train_pred,y_err_norm_train)
     epoch_count[e]=(e+1)*epoch_per_chunk
     t_e=time.time()-t0
     print('%d/%d epochs in %d seconds, train error: %0.3f, test error: %0.3f' % (epoch_count[e],nb_epoch,t_e,train_err[e],test_err[e]))
-
 
 
 #-----------------------------

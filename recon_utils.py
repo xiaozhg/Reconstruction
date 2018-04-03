@@ -1,13 +1,14 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 import time
 import keras
 import keras
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, GaussianDropout
 
-def prep_data():
+def prep_data(data_path):
 
     num_out=100 #we want about num output features, input power features are half of that
     feature_num=170 #total # of features
@@ -22,9 +23,9 @@ def prep_data():
     #real data
     data_num=20000 #total # of data
     #truth=np.array(pd.read_csv('20180321groundtruth.csv'))
-    features=np.array(pd.read_csv('20180322features.csv'))
-    conv=np.array(pd.read_csv('20180322newpower_conv_sigt.csv'))
-    new_pspec=np.array(pd.read_csv('20180322newpspec_conv_0_08.csv'))
+    features=np.array(pd.read_csv(os.path.join(data_path,'20180322features.csv')))
+    conv=np.array(pd.read_csv(os.path.join(data_path,'20180322newpower_conv_sigt.csv')))
+    new_pspec=np.array(pd.read_csv(os.path.join(data_path,'20180322newpspec_conv_0_08.csv')))
     x_train=[[] for x in range(data_num)]
     y_train=[[] for x in range(data_num)]
     temp_train=[[] for x in range(data_num)]
@@ -102,7 +103,7 @@ def baseline_model(neuron,drop,lr):
     return model
 
 
-def err_model(num_feat,num_neur=256,f_drop=0.15,f_drop2=0.0,lr=3e-3):
+def err_model(num_feat,num_neur=256/2,f_drop=0.5,f_drop2=0.5):
     # create model
     model = Sequential()
     #model.add(GaussianDropout(0.05,input_shape=(25,)))
@@ -121,10 +122,6 @@ def err_model(num_feat,num_neur=256,f_drop=0.15,f_drop2=0.0,lr=3e-3):
     model.add(Dense(1, activation='linear'))
             #sgd = SGD(lr=l, decay=1e-8, momentum=0.9, nesterov=True)
             
-    Ada=keras.optimizers.Adagrad(lr=lr, epsilon=1e-12, decay=0.000) #0.002 for relu #5,1e-10,0 originally
-    #RMS=keras.optimizers.RMSprop(lr=2, rho=0.9, epsilon=1e-10, decay=0.15)
-    model.compile(loss='mean_squared_error', optimizer=Ada,metrics=['mse'])
-    #model.compile(loss='mean_absolute_error', optimizer=Ada,metrics=['mse'])
     return model
 
 
